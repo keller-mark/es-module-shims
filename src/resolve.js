@@ -1,4 +1,5 @@
-import { mapOverrides, shimMode } from './env.js';
+const mapOverrides = true;
+const shimMode = true;
 
 export let importMap = { imports: Object.create(null), scopes: Object.create(null) };
 

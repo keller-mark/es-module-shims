@@ -1,4 +1,4 @@
-export function runMochaTests(suite) {
+export function runMochaTests(suite, importShim) {
   mocha.setup({
     timeout: 20000,
     ui: 'tdd',

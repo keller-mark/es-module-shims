@@ -37,8 +37,8 @@
     "test": "test"
   },
   "scripts": {
-    "build": "npm install -g chomp ; chomp build",
-    "test": "npm install -g chomp ; chomp test"
+    "build": "npm install chomp ; chomp build",
+    "test": "npm install chomp ; chomp test"
   },
   "repository": {
     "type": "git",
@@ -47,5 +47,8 @@
   "bugs": {
     "url": "https://github.com/guybedford/es-module-shims/issues"
   },
-  "homepage": "https://github.com/guybedford/es-module-shims#readme"
+  "homepage": "https://github.com/guybedford/es-module-shims#readme",
+  "dependencies": {
+    "chomp": "^0.2.13"
+  }
 }

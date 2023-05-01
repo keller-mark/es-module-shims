@@ -5,29 +5,6 @@ import {
   resolveIfNotPlainOrUrl,
   isURL,
 } from './resolve.js'
-import {
-  baseUrl as pageBaseUrl,
-  createBlob,
-  edge,
-  throwError,
-  shimMode,
-  resolveHook,
-  fetchHook,
-  importHook,
-  metaHook,
-  skip,
-  revokeBlobURLs,
-  noLoadEventRetriggers,
-  cssModulesEnabled,
-  jsonModulesEnabled,
-  onpolyfill,
-  enforceIntegrity,
-  fromParent,
-  esmsInitOptions,
-  hasDocument,
-  importMapSrcOrLazy,
-  setImportMapSrcOrLazy,
-} from './env.js';
 import { dynamicImport, supportsDynamicImport } from './dynamic-import.js';
 import {
   supportsImportMeta,
@@ -37,6 +14,79 @@ import {
   featureDetectionPromise,
 } from './features.js';
 import * as lexer from '../node_modules/es-module-lexer/dist/lexer.asm.js';
+
+const hasWindow = typeof window !== 'undefined';
+const hasDocument = typeof document !== 'undefined';
+
+const noop = () => {};
+
+const shimMode = true;
+const resolveHook = undefined;
+const importHook = undefined;
+const fetchHook = fetch;
+const metaHook = noop;
+// TODO(mark): remove
+// const mapOverrides = true;
+
+// TODO(mark): what is this used for?
+let nonce = undefined;
+if (!nonce && hasDocument) {
+  const nonceElement = document.querySelector('script[nonce]');
+  if (nonceElement)
+    nonce = nonceElement.nonce || nonceElement.getAttribute('nonce');
+}
+
+const onpolyfill = () => {
+  console.log('%c^^ Module TypeError above is polyfilled and can be ignored ^^', 'font-weight:900;color:#391');
+};
+
+const revokeBlobURLs = undefined;
+const noLoadEventRetriggers = undefined;
+const enforceIntegrity = undefined;
+const enable = [];
+const cssModulesEnabled = enable.includes('css-modules');
+const jsonModulesEnabled = enable.includes('json-modules');
+const edge = !navigator.userAgentData && !!navigator.userAgent.match(/Edge\/\d+\.\d+/);
+
+// TODO(mark): what is this used for?
+const baseUrl = hasDocument
+  ? document.baseURI
+  : `${location.protocol}//${location.host}${location.pathname.includes('/') 
+    ? location.pathname.slice(0, location.pathname.lastIndexOf('/') + 1) 
+    : location.pathname}`;
+const pageBaseUrl = baseUrl;
+
+const createBlob = (source, type = 'text/javascript') => URL.createObjectURL(new Blob([source], { type }));
+
+let skip = undefined;
+
+// TODO: try to remove
+const throwError = err => { (self.reportError || hasWindow && window.safari && console.error || eoop)(err), void onerror(err) };
+
+function fromParent (parent) {
+  return parent ? ` imported from ${parent}` : '';
+}
+
+
+const importMapSrcOrLazy = false;
+function setImportMapSrcOrLazy () {
+  // TODO(mark): can this be a no-op?
+  // importMapSrcOrLazy = true;
+}
+
+
+
+
+
+const esmsInitOptions = {
+  shimMode: true,
+  mapOverrides: true,
+  onimport: undefined,
+  resolve: undefined,
+  fetch: fetch,
+  meta: noop,
+  onerror: noop,
+};
 
 async function _resolve (id, parentUrl) {
   const urlResolved = resolveIfNotPlainOrUrl(id, parentUrl);
@@ -59,7 +109,7 @@ const resolve = resolveHook ? async (id, parentUrl) => {
 // importShim('mod', { opts });
 // importShim('mod', { opts }, parentUrl);
 // importShim('mod', parentUrl);
-async function importShim (id, ...args) {
+export async function importShim (id, ...args) {
   // parentUrl if present will be the last argument
   let parentUrl = args[args.length - 1];
   if (typeof parentUrl !== 'string')
@@ -67,17 +117,21 @@ async function importShim (id, ...args) {
   // needed for shim check
   await initPromise;
   if (importHook) await importHook(id, typeof args[1] !== 'string' ? args[1] : {}, parentUrl);
+  /*
+  TODO(mark): remove
   if (acceptingImportMaps || shimMode || !baselinePassthrough) {
     if (hasDocument)
       processScriptsAndPreloads(true);
     if (!shimMode)
       acceptingImportMaps = false;
+    
   }
+  */
   await importMapPromise;
   return topLevelLoad((await resolve(id, parentUrl)).r, { credentials: 'same-origin' });
 }
 
-self.importShim = importShim;
+// self.importShim = importShim;
 
 function defaultResolve (id, parentUrl) {
   return resolveImportMap(importMap, resolveIfNotPlainOrUrl(id, parentUrl) || id, parentUrl) || throwUnresolved(id, parentUrl);
@@ -97,11 +151,19 @@ function metaResolve (id, parentUrl = this.url) {
   return resolveSync(id, parentUrl);
 }
 
-importShim.resolve = resolveSync;
-importShim.getImportMap = () => JSON.parse(JSON.stringify(importMap));
-importShim.addImportMap = importMapIn => {
+
+// importShim.resolve = resolveSync;
+export function getImportMap() {
+  return JSON.parse(JSON.stringify(importMap));
+}
+export function addImportMap(importMapIn) {
   if (!shimMode) throw new Error('Unsupported in polyfill mode.');
   importMap = resolveAndComposeImportMap(importMapIn, pageBaseUrl, importMap);
+}
+
+export async function importWithMap(id, importMapIn) {
+  addImportMap(importMapIn);
+  return importShim(id);
 }
 
 const registry = importShim._r = {};
@@ -117,7 +179,7 @@ async function loadAll (load, seen) {
 }
 
 let importMap = { imports: {}, scopes: {} };
-let baselinePassthrough;
+let baselinePassthrough = true;
 
 const initPromise = featureDetectionPromise.then(() => {
   baselinePassthrough = esmsInitOptions.polyfillEnable !== true && supportsDynamicImport && supportsImportMeta && supportsImportMaps && (!jsonModulesEnabled || supportsJsonAssertions) && (!cssModulesEnabled || supportsCssAssertions) && !importMapSrcOrLazy;
@@ -127,6 +189,8 @@ const initPromise = featureDetectionPromise.then(() => {
       const supports = HTMLScriptElement.supports || (type => type === 'classic' || type === 'module');
       HTMLScriptElement.supports = type => type === 'importmap' || supports(type);
     }
+    /*
+    TODO(mark): remove
     if (shimMode || !baselinePassthrough) {
       new MutationObserver(mutations => {
         for (const mutation of mutations) {
@@ -160,18 +224,19 @@ const initPromise = featureDetectionPromise.then(() => {
         document.addEventListener('readystatechange', readyListener);
       }
     }
+    */
   }
   return lexer.init;
 });
 let importMapPromise = initPromise;
 let firstPolyfillLoad = true;
-let acceptingImportMaps = true;
+// TODO(mark): remove
+//let acceptingImportMaps = true;
 
 async function topLevelLoad (url, fetchOpts, source, nativelyLoaded, lastStaticLoadPromise) {
-  if (!shimMode)
-    acceptingImportMaps = false;
   await initPromise;
-  await importMapPromise;
+  // TODO(mark): remove
+  // await importMapPromise;
   if (importHook) await importHook(url, typeof fetchOpts !== 'string' ? fetchOpts : {}, '');
   // early analysis opt-out - no need to even fetch if we have feature support
   if (!shimMode && baselinePassthrough) {
@@ -464,6 +529,8 @@ function getOrCreateLoad (url, fetchOpts, parent, source) {
   return load;
 }
 
+/*
+TODO(mark): remove
 function processScriptsAndPreloads (mapsOnly = false) {
   if (self.ESMS_DEBUG) console.info(`es-module-shims: processing scripts`);
   if (!mapsOnly)
@@ -475,6 +542,7 @@ function processScriptsAndPreloads (mapsOnly = false) {
     for (const script of document.querySelectorAll(shimMode ? 'script[type=module-shim]' : 'script[type=module]'))
       processScript(script);
 }
+*/
 
 function getFetchOpts (script) {
   const fetchOpts = {};
@@ -519,6 +587,8 @@ function readyStateCompleteCheck () {
 const hasNext = script => script.nextSibling || script.parentNode && hasNext(script.parentNode);
 const epCheck = (script, ready) => script.ep || !ready && (!script.src && !script.innerHTML || !hasNext(script)) || script.getAttribute('noshim') !== null || !(script.ep = true);
 
+/*
+TODO: remove
 function processImportMap (script, ready = readyStateCompleteCnt > 0) {
   if (epCheck(script, ready)) return;
   // we dont currently support multiple, external or dynamic imports maps in polyfill mode to match native
@@ -542,7 +612,9 @@ function processImportMap (script, ready = readyStateCompleteCnt > 0) {
       acceptingImportMaps = false;
   }
 }
+*/
 
+/*
 function processScript (script, ready = readyStateCompleteCnt > 0) {
   if (epCheck(script, ready)) return;
   // does this load block readystate complete
@@ -567,8 +639,10 @@ function processScript (script, ready = readyStateCompleteCnt > 0) {
   if (isDomContentLoadedScript)
     loadPromise.then(domContentLoadedCheck);
 }
+*/
 
 const fetchCache = {};
+/*
 function processPreload (link) {
   if (link.ep) return;
   link.ep = true;
@@ -576,3 +650,4 @@ function processPreload (link) {
     return;
   fetchCache[link.href] = fetchModule(link.href, getFetchOpts(link));
 }
+*/
